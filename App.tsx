@@ -1,4 +1,4 @@
-// App.tsx
+// App.tsx (Không dùng navigation)
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
@@ -13,6 +13,8 @@ export default function App() {
   }, []);
 
   return (
+    // Chúng ta dùng <View> ở đây vì <ContactListScreen> đã tự quản lý
+    // vùng an toàn (SafeAreaView) của riêng nó.
     <View style={styles.container}>
       <StatusBar style="auto" />
       <ContactsListScreen />
@@ -23,6 +25,6 @@ export default function App() {
 const styles = StyleSheet.create({
   container: { 
     flex: 1,
-    paddingTop: 40,
-   },
+    paddingTop: 50,
+  },
 });

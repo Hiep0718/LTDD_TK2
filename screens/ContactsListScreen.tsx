@@ -1,3 +1,4 @@
+// screens/ContactsListScreen.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -9,16 +10,16 @@ import {
 } from 'react-native';
 import { db } from '../db/database';
 import { Contact } from '../types/Contact';
+import AddContactModal from '../components/AddContactModal';
 
 export default function ContactsListScreen() {
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [isAddModalVisible, setIsAddModalVisible] = useState(false);
 
   const loadContacts = () => {
     try {
-      const result = db.getAllSync<Contact>(
-        'SELECT * FROM contacts ORDER BY name ASC'
-      );
-      setContacts(result);
+      const result = db.getAllSync<Contact>('SELECT * FROM contacts ORDER BY name ASC');
+      setContacts(result || []);
     } catch (error) {
       console.error('Error loading contacts:', error);
     }
@@ -35,8 +36,13 @@ export default function ContactsListScreen() {
           {item.name} {item.favorite === 1 && '⭐'}
         </Text>
 
-        {item.phone && <Text style={styles.contactPhone}>{item.phone}</Text>}
-        {item.email && <Text style={styles.contactPhone}>{item.email}</Text>}
+        {item.phone ? (
+          <Text style={styles.contactPhone}>{item.phone}</Text>
+        ) : null}
+
+        {item.email ? (
+          <Text style={styles.contactPhone}>{item.email}</Text>
+        ) : null}
       </View>
     </View>
   );
@@ -46,6 +52,15 @@ export default function ContactsListScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Danh bạ</Text>
+
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => setIsAddModalVisible(true)}
+          accessible
+          accessibilityLabel="Thêm liên hệ"
+        >
+          <Text style={styles.addButtonText}>+</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Empty state */}
@@ -65,6 +80,13 @@ export default function ContactsListScreen() {
           contentContainerStyle={styles.listContent}
         />
       )}
+
+      {/* Add contact modal */}
+      <AddContactModal
+        visible={isAddModalVisible}
+        onClose={() => setIsAddModalVisible(false)}
+        onContactAdded={loadContacts}
+      />
     </SafeAreaView>
   );
 }
@@ -77,9 +99,28 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
 
   headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#333' },
+
+  addButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  addButtonText: {
+    fontSize: 28,
+    color: '#fff',
+    fontWeight: '300',
+    lineHeight: 30,
+  },
 
   listContent: { padding: 16 },
 

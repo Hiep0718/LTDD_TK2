@@ -1,7 +1,4 @@
-// screens/ContactsListScreen.tsx
 import React, { useState, useEffect } from 'react';
-import { Alert } from 'react-native';
-
 import {
   View,
   Text,
@@ -9,14 +6,18 @@ import {
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
+  Alert,
 } from 'react-native';
 import { db } from '../db/database';
 import { Contact } from '../types/Contact';
 import AddContactModal from '../components/AddContactModal';
+import EditContactModal from '../components/EditContactModal';
 
 export default function ContactsListScreen() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
 
   const loadContacts = () => {
     try {
@@ -32,64 +33,71 @@ export default function ContactsListScreen() {
   }, []);
 
   const toggleFavorite = (contact: Contact) => {
-  try {
-    const newFavorite = contact.favorite === 1 ? 0 : 1;
-    db.runSync(
-      'UPDATE contacts SET favorite = ? WHERE id = ?',
-      [newFavorite, contact.id]
-    );
-    loadContacts();
-  } catch (error) {
-    console.error('Error toggling favorite:', error);
-    Alert.alert('Lỗi', 'Không thể cập nhật yêu thích');
-  }
-};
+    try {
+      const newFavorite = contact.favorite === 1 ? 0 : 1;
+      db.runSync('UPDATE contacts SET favorite = ? WHERE id = ?', [
+        newFavorite,
+        contact.id,
+      ]);
+      loadContacts();
+    } catch (error) {
+      Alert.alert('Lỗi', 'Không thể cập nhật yêu thích');
+    }
+  };
 
+  const handleEditContact = (contact: Contact) => {
+    setSelectedContact(contact);
+    setIsEditModalVisible(true);
+  };
 
   const renderContact = ({ item }: { item: Contact }) => (
-  <View style={styles.contactItem}>
-    <View style={{ flex: 1 }}>
-      <Text style={styles.contactName}>{item.name}</Text>
-      {item.phone ? (
-        <Text style={styles.contactPhone}>{item.phone}</Text>
-      ) : null}
-    </View>
-
     <TouchableOpacity
-      style={styles.favoriteButton}
-      onPress={() => toggleFavorite(item)}
+      style={styles.contactItem}
+      onLongPress={() => handleEditContact(item)}
     >
-      <Text style={styles.favoriteIcon}>
-        {item.favorite === 1 ? '⭐' : '☆'}
-      </Text>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.contactName}>{item.name}</Text>
+        {item.phone ? <Text style={styles.contactPhone}>{item.phone}</Text> : null}
+      </View>
+
+      <View style={styles.actions}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => handleEditContact(item)}
+        >
+          <Text style={styles.actionIcon}>✏️</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.favoriteButton}
+          onPress={() => toggleFavorite(item)}
+        >
+          <Text style={styles.favoriteIcon}>
+            {item.favorite === 1 ? '⭐' : '☆'}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </TouchableOpacity>
-  </View>
-);
+  );
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Danh bạ</Text>
 
         <TouchableOpacity
           style={styles.addButton}
           onPress={() => setIsAddModalVisible(true)}
-          accessible
-          accessibilityLabel="Thêm liên hệ"
         >
           <Text style={styles.addButtonText}>+</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Empty state */}
       {contacts.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>📱</Text>
           <Text style={styles.emptyTitle}>Chưa có liên hệ nào</Text>
-          <Text style={styles.emptySubtitle}>
-            Nhấn nút + để thêm liên hệ mới
-          </Text>
+          <Text style={styles.emptySubtitle}>Nhấn nút + để thêm liên hệ</Text>
         </View>
       ) : (
         <FlatList
@@ -100,11 +108,20 @@ export default function ContactsListScreen() {
         />
       )}
 
-      {/* Add contact modal */}
       <AddContactModal
         visible={isAddModalVisible}
         onClose={() => setIsAddModalVisible(false)}
         onContactAdded={loadContacts}
+      />
+
+      <EditContactModal
+        visible={isEditModalVisible}
+        contact={selectedContact}
+        onClose={() => {
+          setIsEditModalVisible(false);
+          setSelectedContact(null);
+        }}
+        onContactUpdated={loadContacts}
       />
     </SafeAreaView>
   );
@@ -122,82 +139,36 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-
-  headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#333' },
-  contactItem: {
-  backgroundColor: '#fff',
-  padding: 16,
-  borderRadius: 8,
-  marginBottom: 8,
-  elevation: 2,
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 1 },
-  shadowOpacity: 0.1,
-  shadowRadius: 2,
-  flexDirection: 'row',
-  alignItems: 'center',
-},
-
-contactName: {
-  fontSize: 16,
-  fontWeight: '600',
-  color: '#333',
-},
-
-contactPhone: {
-  fontSize: 14,
-  color: '#555',
-  marginTop: 4,
-},
-
-favoriteButton: {
-  padding: 8,
-},
-
-favoriteIcon: {
-  fontSize: 24,
-},
-
-
-  addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#007AFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  addButtonText: {
-    fontSize: 28,
-    color: '#fff',
-    fontWeight: '300',
-    lineHeight: 30,
-  },
+  headerTitle: { fontSize: 24, fontWeight: 'bold' },
 
   listContent: { padding: 16 },
 
-  contactInfo: { flex: 1 },
-
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-
-  emptyText: { fontSize: 64, marginBottom: 16 },
-
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+  contactItem: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 8,
     marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
+  contactName: { fontSize: 16, fontWeight: '600' },
+  contactPhone: { fontSize: 14, color: '#555', marginTop: 4 },
 
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
+  actions: { flexDirection: 'row', alignItems: 'center' },
+  actionButton: { padding: 8, marginRight: 8 },
+  actionIcon: { fontSize: 20 },
+
+  favoriteButton: { padding: 8 },
+  favoriteIcon: { fontSize: 24 },
+
+  addButton: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: '#007AFF', justifyContent: 'center', alignItems: 'center',
   },
+  addButtonText: { fontSize: 28, color: '#fff', fontWeight: '300' },
+
+  emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyText: { fontSize: 64 },
+  emptyTitle: { fontSize: 18, fontWeight: '600', marginTop: 8 },
+  emptySubtitle: { fontSize: 14, color: '#666', marginTop: 4 },
 });

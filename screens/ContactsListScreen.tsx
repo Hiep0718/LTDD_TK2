@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Alert,
+  TextInput,
 } from 'react-native';
 import { db } from '../db/database';
 import { Contact } from '../types/Contact';
@@ -19,21 +20,25 @@ export default function ContactsListScreen() {
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
 
-  // Load danh sách
-  const loadContacts = () => {
+  // 👉 Search text
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // 👉 Toggle filter favorites
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+
+  const loadContacts = useCallback(() => {
     try {
       const result = db.getAllSync<Contact>('SELECT * FROM contacts ORDER BY name ASC');
       setContacts(result || []);
     } catch (error) {
       console.error('Error loading contacts:', error);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadContacts();
-  }, []);
+  }, [loadContacts]);
 
-  // Toggle favorite
   const toggleFavorite = (contact: Contact) => {
     try {
       const newFavorite = contact.favorite === 1 ? 0 : 1;
@@ -47,7 +52,6 @@ export default function ContactsListScreen() {
     }
   };
 
-  // DELETE CONTACT
   const handleDeleteContact = (contact: Contact) => {
     Alert.alert(
       'Xác nhận xóa',
@@ -73,53 +77,66 @@ export default function ContactsListScreen() {
     }
   };
 
-  // OPEN EDIT MODAL
   const handleEditContact = (contact: Contact) => {
     setSelectedContact(contact);
     setIsEditModalVisible(true);
   };
 
-  // RENDER ITEM
-  const renderContact = ({ item }: { item: Contact }) => (
-    <TouchableOpacity
-      style={styles.contactItem}
-      onLongPress={() => handleEditContact(item)}
-    >
-      <View style={{ flex: 1 }}>
-        <Text style={styles.contactName}>{item.name}</Text>
-        {item.phone ? (
-          <Text style={styles.contactPhone}>{item.phone}</Text>
-        ) : null}
-      </View>
+  // 👉 Tối ưu lọc bằng useMemo
+  const filteredContacts = useMemo(() => {
+    const lower = searchQuery.toLowerCase();
 
-      <View style={styles.actions}>
-        {/* EDIT */}
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => handleEditContact(item)}
-        >
-          <Text style={styles.actionIcon}>✏️</Text>
-        </TouchableOpacity>
+    return contacts.filter((c) => {
+      const matchesSearch =
+        c.name.toLowerCase().includes(lower) ||
+        (c.phone && c.phone.includes(lower));
 
-        {/* DELETE */}
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => handleDeleteContact(item)}
-        >
-          <Text style={[styles.actionIcon, styles.deleteIcon]}>🗑️</Text>
-        </TouchableOpacity>
+      const matchesFavorite = showFavoritesOnly ? c.favorite === 1 : true;
 
-        {/* FAVORITE */}
-        <TouchableOpacity
-          style={styles.favoriteButton}
-          onPress={() => toggleFavorite(item)}
-        >
-          <Text style={styles.favoriteIcon}>
-            {item.favorite === 1 ? '⭐' : '☆'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
+      return matchesSearch && matchesFavorite;
+    });
+  }, [contacts, searchQuery, showFavoritesOnly]);
+
+  const renderContact = useCallback(
+    ({ item }: { item: Contact }) => (
+      <TouchableOpacity
+        style={styles.contactItem}
+        onLongPress={() => handleEditContact(item)}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={styles.contactName}>{item.name}</Text>
+          {item.phone ? (
+            <Text style={styles.contactPhone}>{item.phone}</Text>
+          ) : null}
+        </View>
+
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => handleEditContact(item)}
+          >
+            <Text style={styles.actionIcon}>✏️</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => handleDeleteContact(item)}
+          >
+            <Text style={[styles.actionIcon, styles.deleteIcon]}>🗑️</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.favoriteButton}
+            onPress={() => toggleFavorite(item)}
+          >
+            <Text style={styles.favoriteIcon}>
+              {item.favorite === 1 ? '⭐' : '☆'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    ),
+    []
   );
 
   return (
@@ -136,16 +153,38 @@ export default function ContactsListScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* SEARCH BAR + FAVORITE FILTER */}
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="🔍 Tìm kiếm theo tên hoặc số..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+
+        <TouchableOpacity
+          style={[
+            styles.favoriteFilterButton,
+            showFavoritesOnly && { backgroundColor: '#ffce00' },
+          ]}
+          onPress={() => setShowFavoritesOnly((prev) => !prev)}
+        >
+          <Text style={{ fontSize: 18 }}>
+            {showFavoritesOnly ? '⭐ On' : '☆ Fav'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {/* LIST */}
-      {contacts.length === 0 ? (
+      {filteredContacts.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>📱</Text>
-          <Text style={styles.emptyTitle}>Chưa có liên hệ nào</Text>
-          <Text style={styles.emptySubtitle}>Nhấn nút + để thêm liên hệ</Text>
+          <Text style={styles.emptyTitle}>Không tìm thấy liên hệ</Text>
+          <Text style={styles.emptySubtitle}>Thử tìm từ khóa khác</Text>
         </View>
       ) : (
         <FlatList
-          data={contacts}
+          data={filteredContacts}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderContact}
           contentContainerStyle={styles.listContent}
@@ -185,6 +224,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: { fontSize: 24, fontWeight: 'bold' },
+
+  searchContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    alignItems: 'center',
+    gap: 10,
+  },
+  searchInput: {
+    flex: 1,
+    backgroundColor: '#fff',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  favoriteFilterButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+  },
 
   listContent: { padding: 16 },
 

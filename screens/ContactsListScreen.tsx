@@ -19,6 +19,7 @@ export default function ContactsListScreen() {
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
 
+  // Load danh sách
   const loadContacts = () => {
     try {
       const result = db.getAllSync<Contact>('SELECT * FROM contacts ORDER BY name ASC');
@@ -32,6 +33,7 @@ export default function ContactsListScreen() {
     loadContacts();
   }, []);
 
+  // Toggle favorite
   const toggleFavorite = (contact: Contact) => {
     try {
       const newFavorite = contact.favorite === 1 ? 0 : 1;
@@ -45,11 +47,39 @@ export default function ContactsListScreen() {
     }
   };
 
+  // DELETE CONTACT
+  const handleDeleteContact = (contact: Contact) => {
+    Alert.alert(
+      'Xác nhận xóa',
+      `Bạn có chắc muốn xóa liên hệ "${contact.name}"?`,
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa',
+          style: 'destructive',
+          onPress: () => deleteContact(contact.id),
+        },
+      ]
+    );
+  };
+
+  const deleteContact = (id: number) => {
+    try {
+      db.runSync('DELETE FROM contacts WHERE id = ?', [id]);
+      Alert.alert('Thành công', 'Đã xóa liên hệ');
+      loadContacts();
+    } catch (error) {
+      Alert.alert('Lỗi', 'Không thể xóa liên hệ');
+    }
+  };
+
+  // OPEN EDIT MODAL
   const handleEditContact = (contact: Contact) => {
     setSelectedContact(contact);
     setIsEditModalVisible(true);
   };
 
+  // RENDER ITEM
   const renderContact = ({ item }: { item: Contact }) => (
     <TouchableOpacity
       style={styles.contactItem}
@@ -57,10 +87,13 @@ export default function ContactsListScreen() {
     >
       <View style={{ flex: 1 }}>
         <Text style={styles.contactName}>{item.name}</Text>
-        {item.phone ? <Text style={styles.contactPhone}>{item.phone}</Text> : null}
+        {item.phone ? (
+          <Text style={styles.contactPhone}>{item.phone}</Text>
+        ) : null}
       </View>
 
       <View style={styles.actions}>
+        {/* EDIT */}
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => handleEditContact(item)}
@@ -68,6 +101,15 @@ export default function ContactsListScreen() {
           <Text style={styles.actionIcon}>✏️</Text>
         </TouchableOpacity>
 
+        {/* DELETE */}
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => handleDeleteContact(item)}
+        >
+          <Text style={[styles.actionIcon, styles.deleteIcon]}>🗑️</Text>
+        </TouchableOpacity>
+
+        {/* FAVORITE */}
         <TouchableOpacity
           style={styles.favoriteButton}
           onPress={() => toggleFavorite(item)}
@@ -82,6 +124,7 @@ export default function ContactsListScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* HEADER */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Danh bạ</Text>
 
@@ -93,6 +136,7 @@ export default function ContactsListScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* LIST */}
       {contacts.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>📱</Text>
@@ -108,6 +152,7 @@ export default function ContactsListScreen() {
         />
       )}
 
+      {/* MODALS */}
       <AddContactModal
         visible={isAddModalVisible}
         onClose={() => setIsAddModalVisible(false)}
@@ -157,13 +202,18 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', alignItems: 'center' },
   actionButton: { padding: 8, marginRight: 8 },
   actionIcon: { fontSize: 20 },
+  deleteIcon: { color: '#ff3b30' },
 
   favoriteButton: { padding: 8 },
   favoriteIcon: { fontSize: 24 },
 
   addButton: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#007AFF', justifyContent: 'center', alignItems: 'center',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   addButtonText: { fontSize: 28, color: '#fff', fontWeight: '300' },
 

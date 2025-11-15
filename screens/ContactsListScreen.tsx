@@ -20,12 +20,15 @@ export default function ContactsListScreen() {
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
 
-  // 👉 Search text
+  // Search + Filter Favorites
   const [searchQuery, setSearchQuery] = useState('');
-
-  // 👉 Toggle filter favorites
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
+  // Import API States
+  const [isImporting, setIsImporting] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  // Load all contacts
   const loadContacts = useCallback(() => {
     try {
       const result = db.getAllSync<Contact>('SELECT * FROM contacts ORDER BY name ASC');
@@ -39,6 +42,7 @@ export default function ContactsListScreen() {
     loadContacts();
   }, [loadContacts]);
 
+  // Toggle favorite
   const toggleFavorite = (contact: Contact) => {
     try {
       const newFavorite = contact.favorite === 1 ? 0 : 1;
@@ -52,17 +56,14 @@ export default function ContactsListScreen() {
     }
   };
 
+  // Delete contact
   const handleDeleteContact = (contact: Contact) => {
     Alert.alert(
       'Xác nhận xóa',
       `Bạn có chắc muốn xóa liên hệ "${contact.name}"?`,
       [
         { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Xóa',
-          style: 'destructive',
-          onPress: () => deleteContact(contact.id),
-        },
+        { text: 'Xóa', style: 'destructive', onPress: () => deleteContact(contact.id) },
       ]
     );
   };
@@ -72,17 +73,18 @@ export default function ContactsListScreen() {
       db.runSync('DELETE FROM contacts WHERE id = ?', [id]);
       Alert.alert('Thành công', 'Đã xóa liên hệ');
       loadContacts();
-    } catch (error) {
+    } catch {
       Alert.alert('Lỗi', 'Không thể xóa liên hệ');
     }
   };
 
+  // Open edit modal
   const handleEditContact = (contact: Contact) => {
     setSelectedContact(contact);
     setIsEditModalVisible(true);
   };
 
-  // 👉 Tối ưu lọc bằng useMemo
+  // Realtime search + filter favorites
   const filteredContacts = useMemo(() => {
     const lower = searchQuery.toLowerCase();
 
@@ -97,6 +99,45 @@ export default function ContactsListScreen() {
     });
   }, [contacts, searchQuery, showFavoritesOnly]);
 
+  // Import API: Sample contacts
+  const importFromAPI = async () => {
+    setIsImporting(true);
+    setApiError(null);
+
+    try {
+      const res = await fetch('https://jsonplaceholder.typicode.com/users');
+      if (!res.ok) throw new Error('Fetch failed');
+
+      const data = await res.json();
+
+      const existingPhones = new Set(contacts.map((c) => c.phone));
+      let importedCount = 0;
+
+      data.forEach((item: any) => {
+        const name = item.name;
+        const phone = item.phone?.toString() || '';
+        const email = item.email || '';
+
+        if (!phone || existingPhones.has(phone)) return;
+
+        db.runSync(
+          'INSERT INTO contacts (name, phone, email, favorite) VALUES (?, ?, ?, ?)',
+          [name, phone, email, 0]
+        );
+
+        importedCount++;
+      });
+
+      Alert.alert('Import hoàn tất', `Đã thêm ${importedCount} liên hệ mới.`);
+      loadContacts();
+    } catch {
+      setApiError('Không thể tải dữ liệu từ API');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Render item
   const renderContact = useCallback(
     ({ item }: { item: Contact }) => (
       <TouchableOpacity
@@ -105,9 +146,7 @@ export default function ContactsListScreen() {
       >
         <View style={{ flex: 1 }}>
           <Text style={styles.contactName}>{item.name}</Text>
-          {item.phone ? (
-            <Text style={styles.contactPhone}>{item.phone}</Text>
-          ) : null}
+          {item.phone ? <Text style={styles.contactPhone}>{item.phone}</Text> : null}
         </View>
 
         <View style={styles.actions}>
@@ -129,9 +168,7 @@ export default function ContactsListScreen() {
             style={styles.favoriteButton}
             onPress={() => toggleFavorite(item)}
           >
-            <Text style={styles.favoriteIcon}>
-              {item.favorite === 1 ? '⭐' : '☆'}
-            </Text>
+            <Text style={styles.favoriteIcon}>{item.favorite === 1 ? '⭐' : '☆'}</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -145,19 +182,31 @@ export default function ContactsListScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Danh bạ</Text>
 
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => setIsAddModalVisible(true)}
-        >
-          <Text style={styles.addButtonText}>+</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          {/* Import Button */}
+          <TouchableOpacity
+            style={[styles.importButton, isImporting && { opacity: 0.5 }]}
+            disabled={isImporting}
+            onPress={importFromAPI}
+          >
+            <Text style={styles.importButtonText}>{isImporting ? '...' : '⇩'}</Text>
+          </TouchableOpacity>
+
+          {/* Add Button */}
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => setIsAddModalVisible(true)}
+          >
+            <Text style={styles.addButtonText}>+</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* SEARCH BAR + FAVORITE FILTER */}
+      {/* SEARCH + FILTER */}
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchInput}
-          placeholder="🔍 Tìm kiếm theo tên hoặc số..."
+          placeholder="🔍 Tìm theo tên hoặc số..."
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -169,18 +218,18 @@ export default function ContactsListScreen() {
           ]}
           onPress={() => setShowFavoritesOnly((prev) => !prev)}
         >
-          <Text style={{ fontSize: 18 }}>
-            {showFavoritesOnly ? '⭐ On' : '☆ Fav'}
-          </Text>
+          <Text style={{ fontSize: 18 }}>{showFavoritesOnly ? '⭐ On' : '☆ Fav'}</Text>
         </TouchableOpacity>
       </View>
+
+      {apiError && <Text style={styles.errorText}>{apiError}</Text>}
 
       {/* LIST */}
       {filteredContacts.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>📱</Text>
           <Text style={styles.emptyTitle}>Không tìm thấy liên hệ</Text>
-          <Text style={styles.emptySubtitle}>Thử tìm từ khóa khác</Text>
+          <Text style={styles.emptySubtitle}>Thử từ khóa khác</Text>
         </View>
       ) : (
         <FlatList
@@ -211,6 +260,8 @@ export default function ContactsListScreen() {
   );
 }
 
+/* ------------------------------ STYLES ------------------------------ */
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
 
@@ -223,6 +274,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+
   headerTitle: { fontSize: 24, fontWeight: 'bold' },
 
   searchContainer: {
@@ -249,6 +301,20 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
 
+  importButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#ffaa00',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  importButtonText: {
+    fontSize: 22,
+    color: '#fff',
+    fontWeight: '700',
+  },
+
   listContent: { padding: 16 },
 
   contactItem: {
@@ -259,6 +325,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+
   contactName: { fontSize: 16, fontWeight: '600' },
   contactPhone: { fontSize: 14, color: '#555', marginTop: 4 },
 
@@ -284,4 +351,11 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 64 },
   emptyTitle: { fontSize: 18, fontWeight: '600', marginTop: 8 },
   emptySubtitle: { fontSize: 14, color: '#666', marginTop: 4 },
+
+  errorText: {
+    color: '#ff3b30',
+    textAlign: 'center',
+    marginTop: 4,
+    fontSize: 14,
+  },
 });

@@ -1,5 +1,7 @@
 // screens/ContactsListScreen.tsx
 import React, { useState, useEffect } from 'react';
+import { Alert } from 'react-native';
+
 import {
   View,
   Text,
@@ -29,23 +31,40 @@ export default function ContactsListScreen() {
     loadContacts();
   }, []);
 
+  const toggleFavorite = (contact: Contact) => {
+  try {
+    const newFavorite = contact.favorite === 1 ? 0 : 1;
+    db.runSync(
+      'UPDATE contacts SET favorite = ? WHERE id = ?',
+      [newFavorite, contact.id]
+    );
+    loadContacts();
+  } catch (error) {
+    console.error('Error toggling favorite:', error);
+    Alert.alert('Lỗi', 'Không thể cập nhật yêu thích');
+  }
+};
+
+
   const renderContact = ({ item }: { item: Contact }) => (
-    <View style={styles.contactItem}>
-      <View style={styles.contactInfo}>
-        <Text style={styles.contactName}>
-          {item.name} {item.favorite === 1 && '⭐'}
-        </Text>
-
-        {item.phone ? (
-          <Text style={styles.contactPhone}>{item.phone}</Text>
-        ) : null}
-
-        {item.email ? (
-          <Text style={styles.contactPhone}>{item.email}</Text>
-        ) : null}
-      </View>
+  <View style={styles.contactItem}>
+    <View style={{ flex: 1 }}>
+      <Text style={styles.contactName}>{item.name}</Text>
+      {item.phone ? (
+        <Text style={styles.contactPhone}>{item.phone}</Text>
+      ) : null}
     </View>
-  );
+
+    <TouchableOpacity
+      style={styles.favoriteButton}
+      onPress={() => toggleFavorite(item)}
+    >
+      <Text style={styles.favoriteIcon}>
+        {item.favorite === 1 ? '⭐' : '☆'}
+      </Text>
+    </TouchableOpacity>
+  </View>
+);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -105,6 +124,40 @@ const styles = StyleSheet.create({
   },
 
   headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#333' },
+  contactItem: {
+  backgroundColor: '#fff',
+  padding: 16,
+  borderRadius: 8,
+  marginBottom: 8,
+  elevation: 2,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 1 },
+  shadowOpacity: 0.1,
+  shadowRadius: 2,
+  flexDirection: 'row',
+  alignItems: 'center',
+},
+
+contactName: {
+  fontSize: 16,
+  fontWeight: '600',
+  color: '#333',
+},
+
+contactPhone: {
+  fontSize: 14,
+  color: '#555',
+  marginTop: 4,
+},
+
+favoriteButton: {
+  padding: 8,
+},
+
+favoriteIcon: {
+  fontSize: 24,
+},
+
 
   addButton: {
     width: 40,
@@ -124,29 +177,7 @@ const styles = StyleSheet.create({
 
   listContent: { padding: 16 },
 
-  contactItem: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-
   contactInfo: { flex: 1 },
-
-  contactName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
-  },
-
-  contactPhone: { fontSize: 14, color: '#666' },
 
   emptyState: {
     flex: 1,
